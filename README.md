@@ -177,50 +177,51 @@ Instances are from the [einsum benchmark](https://benchmark.einsum.org/) suite. 
 
 ### Apple Silicon M4
 
-Environment: Apple Silicon M4. Median time (ms) of 5 runs (2 warmup). OMP_NUM_THREADS=1, RAYON_NUM_THREADS=1.
+Environment: Apple Silicon M4. Median ± IQR (ms) of 15 runs (3 warmup). OMP_NUM_THREADS=1, RAYON_NUM_THREADS=1. Run date: 2026-02-25.
 
 #### Strategy: opt_flops
 
-| Instance | tenferro-einsum (ms) |
-|---|---:|
-| bin_batched_matmul_b32_m64_n64_k64 | **1.129** |
-| bin_elementwise_mul_2048x2048 | **1.887** |
-| bin_matmul_256 | **0.625** |
-| bin_outer_product_4096 | **2.969** |
-| gm_queen5_5_3.wcsp | **0.432** |
-| lm_batch_likelihood_brackets_4_4d | **58.821** |
-| lm_batch_likelihood_sentence_3_12d | **939.580** |
-| lm_batch_likelihood_sentence_4_4d | **186.254** |
-| str_matrix_chain_multiplication_100 | - |
-| str_mps_varying_inner_product_200 | - |
-| str_nw_mera_closed_120 | - |
-| str_nw_mera_open_26 | - |
-| tensornetwork_permutation_focus_step409_316 | **14.588** |
-| tensornetwork_permutation_light_415 | **1.141** |
+| Instance | tenferro-einsum (ms) | strided-rs faer (ms) |
+|---|---:|---:|
+| bin_batched_matmul_b32_m64_n64_k64 | 0.696 | **0.516 ± 0.032** |
+| bin_elementwise_mul_2048x2048 | 1.714 | **1.448 ± 0.099** |
+| bin_matmul_256 | 0.620 | **0.610 ± 0.024** |
+| bin_outer_product_4096 | 3.523 | **2.201 ± 0.013** |
+| gm_queen5_5_3.wcsp | **0.478** | 1781.886 ± 36.662 |
+| lm_batch_likelihood_brackets_4_4d | 61.832 | **9.780 ± 0.262** |
+| lm_batch_likelihood_sentence_3_12d | 955.125 | **33.468 ± 0.237** |
+| lm_batch_likelihood_sentence_4_4d | 191.595 | **10.945 ± 0.370** |
+| str_matrix_chain_multiplication_100 | - | **8.828 ± 0.137** |
+| str_mps_varying_inner_product_200 | - | **8.852 ± 0.080** |
+| str_nw_mera_closed_120 | - | **849.686 ± 1.327** |
+| str_nw_mera_open_26 | - | **553.024 ± 1.393** |
+| tensornetwork_permutation_focus_step409_316 | **8.048** | 166.705 ± 0.701 |
+| tensornetwork_permutation_light_415 | **0.805** | 167.576 ± 0.515 |
 
 #### Strategy: opt_size
 
-| Instance | tenferro-einsum (ms) |
-|---|---:|
-| bin_batched_matmul_b32_m64_n64_k64 | **0.714** |
-| bin_elementwise_mul_2048x2048 | **1.536** |
-| bin_matmul_256 | **0.606** |
-| bin_outer_product_4096 | **3.056** |
-| gm_queen5_5_3.wcsp | **0.463** |
-| lm_batch_likelihood_brackets_4_4d | **43.508** |
-| lm_batch_likelihood_sentence_3_12d | **914.487** |
-| lm_batch_likelihood_sentence_4_4d | **90.349** |
-| str_matrix_chain_multiplication_100 | - |
-| str_mps_varying_inner_product_200 | - |
-| str_nw_mera_closed_120 | - |
-| str_nw_mera_open_26 | - |
-| tensornetwork_permutation_focus_step409_316 | **12.276** |
-| tensornetwork_permutation_light_415 | **0.843** |
+| Instance | tenferro-einsum (ms) | strided-rs faer (ms) |
+|---|---:|---:|
+| bin_batched_matmul_b32_m64_n64_k64 | 0.691 | **0.495 ± 0.003** |
+| bin_elementwise_mul_2048x2048 | 1.695 | **1.221 ± 0.031** |
+| bin_matmul_256 | 0.634 | **0.578 ± 0.012** |
+| bin_outer_product_4096 | 3.357 | **2.129 ± 0.029** |
+| gm_queen5_5_3.wcsp | **0.479** | 678.527 ± 3.202 |
+| lm_batch_likelihood_brackets_4_4d | 46.802 | **10.227 ± 0.214** |
+| lm_batch_likelihood_sentence_3_12d | 962.961 | **34.883 ± 0.191** |
+| lm_batch_likelihood_sentence_4_4d | 94.468 | **11.513 ± 0.138** |
+| str_matrix_chain_multiplication_100 | - | **8.840 ± 0.106** |
+| str_mps_varying_inner_product_200 | - | **8.680 ± 0.129** |
+| str_nw_mera_closed_120 | - | **857.491 ± 2.012** |
+| str_nw_mera_open_26 | - | **556.531 ± 1.800** |
+| tensornetwork_permutation_focus_step409_316 | **7.991** | 166.498 ± 0.524 |
+| tensornetwork_permutation_light_415 | **0.743** | 167.472 ± 0.506 |
 
 **Notes:**
-- `-` indicates the instance was skipped (e.g. unsupported contraction type). Skipped instances are reported as **SKIP** with the reason on stderr.
-- `str_*` instances are currently not supported by tenferro-einsum and are skipped.
-- Timing: median of 5 runs with 2 warmup runs.
+- `-` indicates the instance was skipped (OOM or unsupported). Skipped instances are reported as **SKIP** with the reason on stderr.
+- `str_*` instances are currently not supported by tenferro-einsum (OOM kill on M4).
+- **strided-rs faer** uses [faer](https://github.com/sarah-quinones/faer-rs) (pure Rust GEMM).
+- tenferro-einsum and strided-rs use the same pre-computed contraction path for fair comparison.
 
 ## References
 
