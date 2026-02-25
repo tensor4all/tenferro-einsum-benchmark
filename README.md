@@ -72,19 +72,65 @@ Default: single-threaded. Pass `4` for 4 threads.
 BENCH_INSTANCE=gm_queen5_5_3.wcsp cargo run --release
 ```
 
-## Limitations
+### 4. Binary Einsum Diagnostic Instances
 
-- **float64 only**: `complex128` instances are skipped (not yet supported).
-- **Index labels**: tenferro-einsum's `Subscripts::parse` supports only `a-z` and `A-Z`. Instances using Unicode index labels (e.g. `Á`, `Â`) will be skipped with an error.
+For bottleneck investigation, this repo includes a small binary-only set:
 
-## Comparison with strided-rs-benchmark-suite
+- `bin_matmul_256` (`ij,jk->ik`)
+- `bin_batched_matmul_b32_m64_n64_k64` (`bij,bjk->bik`)
+- `bin_outer_product_4096` (`i,j->ij`)
+- `bin_elementwise_mul_2048x2048` (`ij,ij->ij`)
 
-| Feature | strided-rs-benchmark-suite | tenferro-einsum-benchmark |
-|---------|---------------------------|---------------------------|
-| Rust backend | strided-opteinsum (faer/blas) | tenferro-einsum |
-| Julia backend | OMEinsum.jl | — |
-| Data format | Same JSON | Same JSON |
-| Path strategies | opt_flops, opt_size | opt_flops, opt_size |
+Recommended invocation for consistent single-thread profiling:
+
+```bash
+RAYON_NUM_THREADS=1 OMP_NUM_THREADS=1 \
+  BENCH_INSTANCE=bin_matmul_256 cargo run --release
+```
+
+## Benchmark Result M4 
+
+#### Strategy: opt_flops
+
+Median time (ms). OMP_NUM_THREADS=1, RAYON_NUM_THREADS=1.
+
+| Instance | tenferro-einsum (ms) |
+|---|---:|
+| bin_batched_matmul_b32_m64_n64_k64 | **1.129** |
+| bin_elementwise_mul_2048x2048 | **1.887** |
+| bin_matmul_256 | **0.625** |
+| bin_outer_product_4096 | **2.969** |
+| gm_queen5_5_3.wcsp | **0.432** |
+| lm_batch_likelihood_brackets_4_4d | **58.821** |
+| lm_batch_likelihood_sentence_3_12d | **939.580** |
+| lm_batch_likelihood_sentence_4_4d | **186.254** |
+| str_matrix_chain_multiplication_100 | - |
+| str_mps_varying_inner_product_200 | - |
+| str_nw_mera_closed_120 | - |
+| str_nw_mera_open_26 | - |
+| tensornetwork_permutation_focus_step409_316 | **14.588** |
+| tensornetwork_permutation_light_415 | **1.141** |
+
+#### Strategy: opt_size
+
+Median time (ms). OMP_NUM_THREADS=1, RAYON_NUM_THREADS=1.
+
+| Instance | tenferro-einsum (ms) |
+|---|---:|
+| bin_batched_matmul_b32_m64_n64_k64 | **0.714** |
+| bin_elementwise_mul_2048x2048 | **1.536** |
+| bin_matmul_256 | **0.606** |
+| bin_outer_product_4096 | **3.056** |
+| gm_queen5_5_3.wcsp | **0.463** |
+| lm_batch_likelihood_brackets_4_4d | **43.508** |
+| lm_batch_likelihood_sentence_3_12d | **914.487** |
+| lm_batch_likelihood_sentence_4_4d | **90.349** |
+| str_matrix_chain_multiplication_100 | - |
+| str_mps_varying_inner_product_200 | - |
+| str_nw_mera_closed_120 | - |
+| str_nw_mera_open_26 | - |
+| tensornetwork_permutation_focus_step409_316 | **12.276** |
+| tensornetwork_permutation_light_415 | **0.843** |
 
 ## License
 

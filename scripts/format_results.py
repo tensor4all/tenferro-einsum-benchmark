@@ -11,13 +11,14 @@ import re
 import sys
 
 
-def parse_log(filepath: str) -> tuple[dict[tuple[str, str, str], tuple[float, float | None]], dict[str, str]]:
+def parse_log(filepath: str) -> tuple[dict[tuple[str, str, str], tuple[float | None, float | None]], dict[str, str]]:
     """Parse a benchmark log and return (results, metadata).
 
-    results: {(instance, strategy, mode): (median_ms, iqr_ms or None)}
+    results: {(instance, strategy, mode): (median_ms or None, iqr_ms or None)}
+    - (None, None) for SKIP'd instances
     metadata: thread environment variables found in the log
     """
-    results: dict[tuple[str, str, str], tuple[float, float | None]] = {}
+    results: dict[tuple[str, str, str], tuple[float | None, float | None]] = {}
     current_mode = None
     current_strategy = None
     metadata: dict[str, str] = {}
@@ -83,6 +84,8 @@ def parse_log(filepath: str) -> tuple[dict[tuple[str, str, str], tuple[float, fl
                     name = parts[0]
                     last = parts[-1]
                     if last == "SKIP":
+                        key = (name, current_strategy, current_mode)
+                        results[key] = (None, None)  # SKIP -> display as "-"
                         continue
                     if has_iqr and len(parts) >= 6:
                         median_ms = float(parts[-2])
@@ -106,8 +109,10 @@ def format_markdown_table(all_results: dict, metadata: dict[str, str]) -> str:
     strategies = sorted(set(strat for _, strat, _ in all_results.keys()))
     modes = sorted(set(mode for _, _, mode in all_results.keys()))
 
-    # Check if any result has IQR data
-    has_iqr = any(iqr is not None for _, (_, iqr) in all_results.items())
+    # Check if any result has IQR data (exclude SKIP entries with None)
+    has_iqr = any(
+        iqr is not None for _, (m, iqr) in all_results.items() if m is not None
+    )
 
     # Modes to exclude from output (unfair comparison: different contraction path)
     excluded_modes = {"omeinsum_opt"}
@@ -168,7 +173,9 @@ def format_markdown_table(all_results: dict, metadata: dict[str, str]) -> str:
             for mode in mode_order:
                 key = (name, strategy, mode)
                 if key in all_results:
-                    medians[mode] = all_results[key][0]
+                    m = all_results[key][0]
+                    if m is not None:
+                        medians[mode] = m
             min_val = min(medians.values()) if medians else None
 
             row = [name]
@@ -176,7 +183,9 @@ def format_markdown_table(all_results: dict, metadata: dict[str, str]) -> str:
                 key = (name, strategy, mode)
                 if key in all_results:
                     median_ms, iqr_ms = all_results[key]
-                    if has_iqr and iqr_ms is not None:
+                    if median_ms is None:
+                        formatted = "-"
+                    elif has_iqr and iqr_ms is not None:
                         formatted = f"{median_ms:.3f} ± {iqr_ms:.3f}"
                     else:
                         formatted = f"{median_ms:.3f}"

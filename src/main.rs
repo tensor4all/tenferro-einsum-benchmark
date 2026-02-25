@@ -49,9 +49,7 @@ struct PathMeta {
 /// Path convention: each step [i, j] contracts tensors at indices i and j
 /// in the current list. Same as tenferro's from_pairs (left, right).
 fn path_to_pairs(path: &[[usize; 2]]) -> Vec<(usize, usize)> {
-    path.iter()
-        .map(|p| (p[0], p[1]))
-        .collect()
+    path.iter().map(|p| (p[0], p[1])).collect()
 }
 
 // ---------------------------------------------------------------------------
@@ -84,12 +82,15 @@ fn run_instance(
     }
 
     let subs = Subscripts::parse(&instance.format_string_colmajor)?;
-    let shapes: Vec<&[usize]> = instance.shapes_colmajor.iter().map(|s| s.as_slice()).collect();
+    let shapes: Vec<&[usize]> = instance
+        .shapes_colmajor
+        .iter()
+        .map(|s| s.as_slice())
+        .collect();
     let pairs = path_to_pairs(&path_meta.path);
     let tree = ContractionTree::from_pairs(&subs, &shapes, &pairs)?;
 
-    let operands: Vec<Tensor<f64>> =
-        create_operands(&instance.shapes_colmajor, &instance.dtype);
+    let operands: Vec<Tensor<f64>> = create_operands(&instance.shapes_colmajor, &instance.dtype);
     let operands_refs: Vec<&Tensor<f64>> = operands.iter().collect();
 
     // Warmup
@@ -198,7 +199,8 @@ fn main() {
         );
         println!("{}", "-".repeat(96));
 
-        for instance in &instances {
+        for (i, instance) in instances.iter().enumerate() {
+            eprintln!("  [{}/{}] {}...", i + 1, instances.len(), instance.name);
             let path_meta = get_path(&instance.paths);
             match run_instance(instance, path_meta, &mut ctx) {
                 Ok(median) => {
