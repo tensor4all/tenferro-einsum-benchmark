@@ -2,7 +2,7 @@
 set -euo pipefail
 
 # ---------------------------------------------------------------------------
-# Benchmark runner: tenferro-einsum vs strided-rs (faer + optional OpenBLAS)
+# Benchmark runner: tenferro-einsum vs strided-rs (faer)
 #
 # Usage: ./scripts/run_all.sh [NUM_THREADS]
 #
@@ -63,10 +63,45 @@ if [[ ! -x "$BIN" ]]; then
     exit 1
 fi
 
-echo "Running tenferro-einsum benchmark..."
-"$BIN" 2>/dev/null | tee "$TENFERRO_LOG"
+echo "Running tenferro-einsum benchmark (instance-by-instance)..."
+: > "$TENFERRO_LOG"
+
+INSTANCES=()
+while IFS= read -r f; do
+    inst="$(basename "$f" .json)"
+    INSTANCES+=("$inst")
+done < <(find "$PROJECT_DIR/data/instances" -maxdepth 1 -name '*.json' | sort)
+
+if [[ -n "${BENCH_INSTANCE:-}" ]]; then
+    INSTANCES=("$BENCH_INSTANCE")
+fi
+
+FAILED=()
+for i in "${!INSTANCES[@]}"; do
+    inst="${INSTANCES[$i]}"
+    n=$((i + 1))
+    total="${#INSTANCES[@]}"
+    echo "  [$n/$total] $inst"
+    if BENCH_INSTANCE="$inst" "$BIN" 2>/dev/null | tee -a "$TENFERRO_LOG"; then
+        :
+    else
+        rc=${PIPESTATUS[0]}
+        FAILED+=("$inst(rc=$rc)")
+        echo "WARNING: $inst failed (exit=$rc). Continuing." | tee -a "$TENFERRO_LOG"
+        {
+            echo "Strategy: opt_flops"
+            printf "%-50s %8s %10s %12s %12s\n" "$inst" "0" "0.00" "0.00" "SKIP"
+            echo "Strategy: opt_size"
+            printf "%-50s %8s %10s %12s %12s\n" "$inst" "0" "0.00" "0.00" "SKIP"
+        } >> "$TENFERRO_LOG"
+    fi
+done
+
 LOGS+=("$TENFERRO_LOG")
 echo ""
+if [[ "${#FAILED[@]}" -gt 0 ]]; then
+    echo "Failed instances (${#FAILED[@]}): ${FAILED[*]}"
+fi
 echo "Saved: $TENFERRO_LOG"
 echo ""
 
@@ -101,39 +136,6 @@ else
         echo "Saved: $STRIDED_FAER_LOG"
     else
         echo "WARNING: strided-rs (faer) build failed. Skipping."
-    fi
-    echo ""
-
-    # -------------------------------------------------------------------------
-    # [3] strided-rs OpenBLAS (optional)
-    # -------------------------------------------------------------------------
-    echo "============================================"
-    echo " [$STEP] strided-rs (OpenBLAS)"
-    echo "============================================"
-    STEP=$((STEP + 1))
-
-    # Auto-detect OpenBLAS 0.3.29 built locally
-    CUSTOM_OPENBLAS="$HOME/opt/openblas-0.3.29/lib"
-    if [[ -z "${OPENBLAS_LIB_DIR:-}" ]] && [[ -d "$CUSTOM_OPENBLAS" ]]; then
-        export OPENBLAS_LIB_DIR="$CUSTOM_OPENBLAS"
-        export LD_LIBRARY_PATH="${CUSTOM_OPENBLAS}${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
-        echo "Auto-detected OpenBLAS 0.3.29 at $CUSTOM_OPENBLAS"
-    fi
-
-    STRIDED_BLAS_LOG="$RESULTS_DIR/strided_blas_t${NUM_THREADS}_${TIMESTAMP}.log"
-
-    echo "Building strided-rs (blas, release)..."
-    if cargo build --release --no-default-features --features blas,parallel \
-            --manifest-path="$STRIDED_DIR/Cargo.toml" 2>&1; then
-        echo "Running strided-rs (OpenBLAS) benchmark..."
-        "$STRIDED_BIN" 2>/dev/null | tee "$STRIDED_BLAS_LOG"
-        LOGS+=("$STRIDED_BLAS_LOG")
-        echo ""
-        echo "Saved: $STRIDED_BLAS_LOG"
-    else
-        echo "WARNING: strided-rs (blas) build failed (OpenBLAS not found?). Skipping."
-        echo "  macOS:  brew install openblas"
-        echo "  Linux:  build OpenBLAS >= 0.3.29 from source and set OPENBLAS_LIB_DIR"
     fi
     echo ""
 fi

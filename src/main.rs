@@ -74,7 +74,7 @@ fn run_instance(
     instance: &BenchmarkInstance,
     path_meta: &PathMeta,
     ctx: &mut CpuContext,
-) -> Result<Duration, tenferro_device::Error> {
+) -> Result<(Duration, Duration), tenferro_device::Error> {
     if instance.dtype == "complex128" {
         return Err(tenferro_device::Error::InvalidArgument(
             "complex128 not supported".into(),
@@ -94,12 +94,12 @@ fn run_instance(
     let operands_refs: Vec<&Tensor<f64>> = operands.iter().collect();
 
     // Warmup
-    for _ in 0..2 {
+    for _ in 0..3 {
         let _ = einsum_with_plan::<_, CpuBackend>(ctx, &tree, &operands_refs, None)?;
     }
 
     // Timed runs
-    let num_runs = 5;
+    let num_runs = 15;
     let mut durations = Vec::with_capacity(num_runs);
     for _ in 0..num_runs {
         let operands: Vec<Tensor<f64>> =
@@ -113,7 +113,11 @@ fn run_instance(
     }
 
     durations.sort();
-    Ok(durations[durations.len() / 2])
+    let median = durations[num_runs / 2];
+    let q1 = durations[num_runs / 4];
+    let q3 = durations[3 * num_runs / 4];
+    let iqr = q3.saturating_sub(q1);
+    Ok((median, iqr))
 }
 
 // ---------------------------------------------------------------------------
@@ -183,7 +187,7 @@ fn main() {
     );
     println!("Backend: {BACKEND_NAME}");
     println!("RAYON_NUM_THREADS={rayon_threads}, OMP_NUM_THREADS={omp_threads}");
-    println!("Timing: median of 5 runs (2 warmup)");
+    println!("Timing: median ± IQR of 15 runs (3 warmup)");
 
     let strategies: &[(&str, fn(&PathInfo) -> &PathMeta)] = &[
         ("opt_flops", |p| &p.opt_flops),
@@ -194,34 +198,36 @@ fn main() {
         println!();
         println!("Strategy: {strategy_name}");
         println!(
-            "{:<50} {:>8} {:>10} {:>12} {:>12}",
-            "Instance", "Tensors", "log10FLOPS", "log2SIZE", "Median (ms)"
+            "{:<50} {:>8} {:>10} {:>12} {:>12} {:>10}",
+            "Instance", "Tensors", "log10FLOPS", "log2SIZE", "Median (ms)", "IQR (ms)"
         );
-        println!("{}", "-".repeat(96));
+        println!("{}", "-".repeat(108));
 
         for (i, instance) in instances.iter().enumerate() {
             eprintln!("  [{}/{}] {}...", i + 1, instances.len(), instance.name);
             let path_meta = get_path(&instance.paths);
             match run_instance(instance, path_meta, &mut ctx) {
-                Ok(median) => {
+                Ok((median, iqr)) => {
                     println!(
-                        "{:<50} {:>8} {:>10.2} {:>12.2} {:>12.3}",
+                        "{:<50} {:>8} {:>10.2} {:>12.2} {:>12.3} {:>10.3}",
                         instance.name,
                         instance.num_tensors,
                         path_meta.log10_flops,
                         path_meta.log2_size,
                         median.as_secs_f64() * 1e3,
+                        iqr.as_secs_f64() * 1e3,
                     );
                 }
                 Err(e) => {
                     eprintln!("  -> {} (error: {e})", instance.name);
                     println!(
-                        "{:<50} {:>8} {:>10.2} {:>12.2} {:>12}",
+                        "{:<50} {:>8} {:>10.2} {:>12.2} {:>12} {:>10}",
                         instance.name,
                         instance.num_tensors,
                         path_meta.log10_flops,
                         path_meta.log2_size,
                         "SKIP",
+                        "-",
                     );
                 }
             }
