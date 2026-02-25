@@ -2,17 +2,18 @@
 set -euo pipefail
 
 # ---------------------------------------------------------------------------
-# Rust benchmark runner (faer + blas backends)
+# Rust benchmark runner (tenferro-einsum + strided-rs faer)
 #
 # Usage: ./scripts/run_all_rust.sh [NUM_THREADS]
 #
 # NUM_THREADS (default: 1) controls:
-#   - OMP_NUM_THREADS   (OpenBLAS internal threading)
+#   - OMP_NUM_THREADS   (OpenBLAS internal threading, if used)
 #   - RAYON_NUM_THREADS  (Rust rayon parallelism)
 #
-# IMPORTANT: On Linux, set OPENBLAS_LIB_DIR and LD_LIBRARY_PATH to a
-# recent OpenBLAS (>= 0.3.29). The system libopenblas-dev on Ubuntu 20.04
-# is 0.3.8, which is ~2x slower than Julia's bundled 0.3.29 on AMD EPYC.
+# Requires:
+#   - tenferro-rs at ../tenferro-rs
+#   - strided-rs-benchmark-suite at ../strided-rs-benchmark-suite (optional)
+#     └─ strided-rs at ../strided-rs (dependency of strided-rs-benchmark-suite)
 # ---------------------------------------------------------------------------
 
 NUM_THREADS="${1:-1}"
@@ -22,15 +23,8 @@ export RAYON_NUM_THREADS="$NUM_THREADS"
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 PROJECT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
+STRIDED_DIR="$(cd "$PROJECT_DIR/../strided-rs-benchmark-suite" 2>/dev/null && pwd || true)"
 RESULTS_DIR="$PROJECT_DIR/data/results"
-
-# Auto-detect custom OpenBLAS at $HOME/opt/openblas-0.3.29
-CUSTOM_OPENBLAS="$HOME/opt/openblas-0.3.29/lib"
-if [ -z "${OPENBLAS_LIB_DIR:-}" ] && [ -d "$CUSTOM_OPENBLAS" ]; then
-    export OPENBLAS_LIB_DIR="$CUSTOM_OPENBLAS"
-    export LD_LIBRARY_PATH="${CUSTOM_OPENBLAS}${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
-    echo "Auto-detected OpenBLAS 0.3.29 at $CUSTOM_OPENBLAS"
-fi
 
 mkdir -p "$RESULTS_DIR"
 
@@ -46,46 +40,55 @@ echo ""
 RUST_LOGS=()
 
 # ---------------------------------------------------------------------------
-# faer backend
+# tenferro-einsum
 # ---------------------------------------------------------------------------
 echo "============================================"
-echo " Rust: strided-opteinsum (faer)"
+echo " Rust: tenferro-einsum"
 echo "============================================"
 
-RUST_FAER_LOG="$RESULTS_DIR/rust_faer_t${NUM_THREADS}_${TIMESTAMP}.log"
+TENFERRO_LOG="$RESULTS_DIR/tenferro_einsum_t${NUM_THREADS}_${TIMESTAMP}.log"
 
-echo "Building Rust (release, faer)..."
-cargo build --release --no-default-features --features faer,parallel --manifest-path="$PROJECT_DIR/Cargo.toml" 2>&1
+echo "Building tenferro-einsum (release)..."
+cargo build --release --manifest-path="$PROJECT_DIR/Cargo.toml" 2>&1
 
-echo "Running Rust benchmark (faer)..."
-cargo run --release --no-default-features --features faer,parallel --bin strided-rs-benchmark-suite --manifest-path="$PROJECT_DIR/Cargo.toml" 2>&1 | tee "$RUST_FAER_LOG"
+echo "Running tenferro-einsum benchmark..."
+cargo run --release --manifest-path="$PROJECT_DIR/Cargo.toml" 2>&1 | tee "$TENFERRO_LOG"
 
 echo ""
-echo "Rust (faer) results saved to: $RUST_FAER_LOG"
+echo "tenferro-einsum results saved to: $TENFERRO_LOG"
 echo ""
-RUST_LOGS+=("$RUST_FAER_LOG")
+RUST_LOGS+=("$TENFERRO_LOG")
 
 # ---------------------------------------------------------------------------
-# blas (OpenBLAS) backend
+# strided-rs (faer)
 # ---------------------------------------------------------------------------
-echo "============================================"
-echo " Rust: strided-opteinsum (blas)"
-echo "============================================"
-
-RUST_BLAS_LOG="$RESULTS_DIR/rust_blas_t${NUM_THREADS}_${TIMESTAMP}.log"
-
-echo "Building Rust (release, blas)..."
-if cargo build --release --no-default-features --features blas,parallel --manifest-path="$PROJECT_DIR/Cargo.toml" 2>&1; then
-    echo "Running Rust benchmark (blas)..."
-    cargo run --release --no-default-features --features blas,parallel --bin strided-rs-benchmark-suite --manifest-path="$PROJECT_DIR/Cargo.toml" 2>&1 | tee "$RUST_BLAS_LOG"
+if [[ -z "$STRIDED_DIR" ]] || [[ ! -d "$STRIDED_DIR" ]]; then
+    echo "NOTE: strided-rs-benchmark-suite not found at ../strided-rs-benchmark-suite"
+    echo "  Skipping strided-rs comparison."
+    echo "  To enable: git clone https://github.com/tensor4all/strided-rs-benchmark-suite ../strided-rs-benchmark-suite"
     echo ""
-    echo "Rust (blas) results saved to: $RUST_BLAS_LOG"
-    RUST_LOGS+=("$RUST_BLAS_LOG")
 else
-    echo "WARNING: blas build failed (OpenBLAS not found?). Skipping blas benchmark."
-    echo "  Install OpenBLAS: brew install openblas (macOS) / apt install libopenblas-dev (Ubuntu)"
+    echo "============================================"
+    echo " Rust: strided-opteinsum (faer)"
+    echo "============================================"
+
+    STRIDED_FAER_LOG="$RESULTS_DIR/strided_faer_t${NUM_THREADS}_${TIMESTAMP}.log"
+
+    echo "Building strided-rs (faer, release)..."
+    if cargo build --release --no-default-features --features faer,parallel \
+            --manifest-path="$STRIDED_DIR/Cargo.toml" 2>&1; then
+        echo "Running strided-rs (faer) benchmark..."
+        cargo run --release --no-default-features --features faer,parallel \
+            --bin strided-rs-benchmark-suite \
+            --manifest-path="$STRIDED_DIR/Cargo.toml" 2>&1 | tee "$STRIDED_FAER_LOG"
+        echo ""
+        echo "strided-rs (faer) results saved to: $STRIDED_FAER_LOG"
+        RUST_LOGS+=("$STRIDED_FAER_LOG")
+    else
+        echo "WARNING: strided-rs (faer) build failed. Skipping."
+    fi
+    echo ""
 fi
-echo ""
 
 # ---------------------------------------------------------------------------
 # Summary

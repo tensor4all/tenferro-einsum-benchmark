@@ -22,7 +22,8 @@ tenferro-einsum-benchmark/
   src/
     main.rs                 # Rust benchmark runner (tenferro-einsum)
   scripts/
-    run_all.sh              # Run all benchmarks (configurable thread count)
+    run_all.sh              # Top-level orchestrator (delegates to run_all_rust.sh)
+    run_all_rust.sh         # Build & run tenferro-einsum + strided-rs (faer)
     generate_dataset.py     # Filter & export benchmark instances as JSON
     format_results.py       # Parse logs and output markdown tables
   data/
@@ -75,12 +76,14 @@ This selects instances by category with laptop-scale criteria and saves JSON met
 ./scripts/run_all.sh 4        # 4 threads
 ```
 
+- Delegates to `scripts/run_all_rust.sh` (tenferro-einsum + strided-rs faer)
 - Sets `OMP_NUM_THREADS` and `RAYON_NUM_THREADS` to the given thread count (default: 1)
-- Builds and runs the Rust benchmark
 - Formats results as a markdown table via `scripts/format_results.py`
 - Saves all outputs to `data/results/` with timestamps
 
 Instance JSON files that fail to read or parse are skipped with a warning; the suite continues with the rest. Instances that trigger a backend error are reported as **SKIP** with the reason on stderr.
+
+Requires `strided-rs-benchmark-suite` at `../strided-rs-benchmark-suite` for strided-rs comparison (optional; skipped with a note if not found).
 
 ### 3. Run a single instance
 
@@ -139,8 +142,8 @@ uv run python scripts/format_results.py data/results/tenferro_einsum_*.log
 
 This script:
 
-1. Sets `OMP_NUM_THREADS` and `RAYON_NUM_THREADS` to the given thread count (default: 1)
-2. Builds and runs the Rust benchmark (release)
+1. Delegates to `scripts/run_all_rust.sh` which builds and runs tenferro-einsum and strided-rs (faer)
+2. Sets `OMP_NUM_THREADS` and `RAYON_NUM_THREADS` to the given thread count (default: 1)
 3. Formats results as a markdown table via `scripts/format_results.py`
 4. Saves all outputs to `data/results/` with timestamps
 
@@ -181,46 +184,49 @@ Environment: Apple Silicon M4. Median ± IQR (ms) of 15 runs (3 warmup). OMP_NUM
 
 #### Strategy: opt_flops
 
+Median ± IQR (ms). OMP_NUM_THREADS=1, RAYON_NUM_THREADS=1.
+
 | Instance | tenferro-einsum (ms) | strided-rs faer (ms) |
 |---|---:|---:|
-| bin_batched_matmul_b32_m64_n64_k64 | 0.679 ± 0.002 | **0.518 ± 0.017** |
-| bin_elementwise_mul_2048x2048 | 1.794 ± 0.160 | **1.214 ± 0.053** |
-| bin_matmul_256 | 0.647 ± 0.118 | **0.600 ± 0.019** |
-| bin_outer_product_4096 | 4.307 ± 4.800 | **2.220 ± 0.041** |
-| gm_queen5_5_3.wcsp | 3347.794 ± 41.768 | **1780.144 ± 49.557** |
-| lm_batch_likelihood_brackets_4_4d | 22.056 ± 0.187 | **9.473 ± 0.288** |
-| lm_batch_likelihood_sentence_3_12d | 63.701 ± 0.338 | **32.971 ± 0.294** |
-| lm_batch_likelihood_sentence_4_4d | 24.796 ± 0.382 | **10.521 ± 0.249** |
-| str_matrix_chain_multiplication_100 | 10.546 ± 0.124 | **8.815 ± 0.062** |
-| str_mps_varying_inner_product_200 | 10.748 ± 0.103 | **8.855 ± 0.105** |
-| str_nw_mera_closed_120 | 904.524 ± 3.869 | **849.482 ± 2.241** |
-| str_nw_mera_open_26 | 710.867 ± 3.118 | **557.867 ± 10.110** |
-| tensornetwork_permutation_focus_step409_316 | 264.970 ± 1.561 | **184.416 ± 1.624** |
-| tensornetwork_permutation_light_415 | 266.891 ± 3.825 | **168.294 ± 0.924** |
+| bin_batched_matmul_b32_m64_n64_k64 | **0.676 ± 0.012** | 0.981 ± 0.164 |
+| bin_elementwise_mul_2048x2048 | 1.750 ± 0.258 | **1.349 ± 0.028** |
+| bin_matmul_256 | 0.622 ± 0.023 | **0.599 ± 0.028** |
+| bin_outer_product_4096 | 3.224 ± 0.155 | **2.157 ± 0.028** |
+| gm_queen5_5_3.wcsp | 3404.841 ± 279.844 | **1767.186 ± 4.682** |
+| lm_batch_likelihood_brackets_4_4d | 24.493 ± 1.396 | **9.918 ± 0.179** |
+| lm_batch_likelihood_sentence_3_12d | 67.311 ± 1.591 | **33.260 ± 0.153** |
+| lm_batch_likelihood_sentence_4_4d | 27.195 ± 1.300 | **10.915 ± 0.812** |
+| str_matrix_chain_multiplication_100 | 10.931 ± 0.329 | **8.875 ± 0.137** |
+| str_mps_varying_inner_product_200 | 11.195 ± 0.151 | **8.829 ± 0.064** |
+| str_nw_mera_closed_120 | 969.616 ± 10.422 | **849.542 ± 1.492** |
+| str_nw_mera_open_26 | 716.492 ± 37.860 | **553.762 ± 1.894** |
+| tensornetwork_permutation_focus_step409_316 | 267.890 ± 3.083 | **170.660 ± 1.366** |
+| tensornetwork_permutation_light_415 | 267.738 ± 2.239 | **168.012 ± 0.661** |
 
 #### Strategy: opt_size
 
+Median ± IQR (ms). OMP_NUM_THREADS=1, RAYON_NUM_THREADS=1.
+
 | Instance | tenferro-einsum (ms) | strided-rs faer (ms) |
 |---|---:|---:|
-| bin_batched_matmul_b32_m64_n64_k64 | 0.663 ± 0.007 | **0.499 ± 0.008** |
-| bin_elementwise_mul_2048x2048 | 1.801 ± 0.146 | **1.210 ± 0.064** |
-| bin_matmul_256 | 0.598 ± 0.019 | **0.576 ± 0.009** |
-| bin_outer_product_4096 | 3.039 ± 0.224 | **2.114 ± 0.021** |
-| gm_queen5_5_3.wcsp | 1170.848 ± 18.377 | **679.658 ± 5.591** |
-| lm_batch_likelihood_brackets_4_4d | 22.148 ± 0.270 | **10.284 ± 0.254** |
-| lm_batch_likelihood_sentence_3_12d | 66.527 ± 0.544 | **34.174 ± 0.308** |
-| lm_batch_likelihood_sentence_4_4d | 25.749 ± 0.616 | **11.518 ± 0.154** |
-| str_matrix_chain_multiplication_100 | 10.196 ± 0.178 | **8.877 ± 0.106** |
-| str_mps_varying_inner_product_200 | 9.773 ± 0.102 | **8.706 ± 0.080** |
-| str_nw_mera_closed_120 | 893.513 ± 6.151 | **858.944 ± 1.390** |
-| str_nw_mera_open_26 | 697.652 ± 1.783 | **562.112 ± 6.319** |
-| tensornetwork_permutation_focus_step409_316 | 266.520 ± 1.015 | **184.032 ± 1.142** |
-| tensornetwork_permutation_light_415 | 268.312 ± 1.215 | **166.830 ± 0.555** |
+| bin_batched_matmul_b32_m64_n64_k64 | 0.668 ± 0.026 | **0.498 ± 0.007** |
+| bin_elementwise_mul_2048x2048 | 1.743 ± 0.333 | **1.184 ± 0.052** |
+| bin_matmul_256 | 0.600 ± 0.054 | **0.576 ± 0.004** |
+| bin_outer_product_4096 | 3.238 ± 0.298 | **2.139 ± 0.054** |
+| gm_queen5_5_3.wcsp | 1260.923 ± 21.310 | **681.685 ± 7.665** |
+| lm_batch_likelihood_brackets_4_4d | 24.458 ± 1.085 | **10.452 ± 0.248** |
+| lm_batch_likelihood_sentence_3_12d | 70.142 ± 1.705 | **35.210 ± 0.177** |
+| lm_batch_likelihood_sentence_4_4d | 28.827 ± 1.291 | **11.868 ± 0.354** |
+| str_matrix_chain_multiplication_100 | 10.858 ± 0.158 | **8.981 ± 0.172** |
+| str_mps_varying_inner_product_200 | 9.915 ± 0.435 | **8.787 ± 0.128** |
+| str_nw_mera_closed_120 | **892.920 ± 3.443** | 897.435 ± 13.205 |
+| str_nw_mera_open_26 | 699.450 ± 2.671 | **611.122 ± 24.217** |
+| tensornetwork_permutation_focus_step409_316 | 268.065 ± 1.746 | **184.465 ± 8.098** |
+| tensornetwork_permutation_light_415 | 269.012 ± 3.166 | **178.819 ± 10.542** |
 
 **Notes:**
 - **strided-rs faer** uses [faer](https://github.com/sarah-quinones/faer-rs) (pure Rust GEMM).
 - Both backends use the same pre-computed contraction path for fair comparison.
-- Previous results (before 2026-02-26) had a bug in `path_to_pairs` that incorrectly mapped opt_einsum current-list indices to tenferro's absolute indices, causing most multi-tensor contractions to skip work and report artificially fast times.
 
 ## References
 
