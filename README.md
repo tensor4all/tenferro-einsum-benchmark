@@ -183,39 +183,39 @@ Environment: Apple Silicon M4. Median ± IQR (ms) of 15 runs (3 warmup). OMP_NUM
 
 | Instance | tenferro-einsum (ms) | strided-rs faer (ms) |
 |---|---:|---:|
-| bin_batched_matmul_b32_m64_n64_k64 | 0.696 | **0.516 ± 0.032** |
-| bin_elementwise_mul_2048x2048 | 1.714 | **1.448 ± 0.099** |
-| bin_matmul_256 | 0.620 | **0.610 ± 0.024** |
-| bin_outer_product_4096 | 3.523 | **2.201 ± 0.013** |
-| gm_queen5_5_3.wcsp | **0.478** | 1781.886 ± 36.662 |
-| lm_batch_likelihood_brackets_4_4d | 61.832 | **9.780 ± 0.262** |
-| lm_batch_likelihood_sentence_3_12d | 955.125 | **33.468 ± 0.237** |
-| lm_batch_likelihood_sentence_4_4d | 191.595 | **10.945 ± 0.370** |
-| str_matrix_chain_multiplication_100 | - | **8.828 ± 0.137** |
-| str_mps_varying_inner_product_200 | - | **8.852 ± 0.080** |
-| str_nw_mera_closed_120 | - | **849.686 ± 1.327** |
-| str_nw_mera_open_26 | - | **553.024 ± 1.393** |
-| tensornetwork_permutation_focus_step409_316 | **8.048** | 166.705 ± 0.701 |
-| tensornetwork_permutation_light_415 | **0.805** | 167.576 ± 0.515 |
+| bin_batched_matmul_b32_m64_n64_k64 | **0.693 ± 0.006** | 0.729 ± 0.552 |
+| bin_elementwise_mul_2048x2048 | 1.589 ± 0.073 | **1.462 ± 0.083** |
+| bin_matmul_256 | 0.626 ± 0.007 | **0.596 ± 0.035** |
+| bin_outer_product_4096 | 3.279 ± 0.095 | **2.162 ± 0.046** |
+| gm_queen5_5_3.wcsp | **0.467 ± 0.022** | 1787.717 ± 42.108 |
+| lm_batch_likelihood_brackets_4_4d | 60.782 ± 0.534 | **9.938 ± 0.294** |
+| lm_batch_likelihood_sentence_3_12d | 954.167 ± 47.744 | **33.102 ± 0.209** |
+| lm_batch_likelihood_sentence_4_4d | 189.056 ± 1.357 | **10.929 ± 0.188** |
+| str_matrix_chain_multiplication_100 | - | **8.815 ± 0.121** |
+| str_mps_varying_inner_product_200 | - | **8.835 ± 0.052** |
+| str_nw_mera_closed_120 | - | **848.963 ± 1.435** |
+| str_nw_mera_open_26 | - | **552.778 ± 1.911** |
+| tensornetwork_permutation_focus_step409_316 | **9.932 ± 2.803** | 166.298 ± 0.498 |
+| tensornetwork_permutation_light_415 | **0.892 ± 0.088** | 167.526 ± 0.347 |
 
 #### Strategy: opt_size
 
 | Instance | tenferro-einsum (ms) | strided-rs faer (ms) |
 |---|---:|---:|
-| bin_batched_matmul_b32_m64_n64_k64 | 0.691 | **0.495 ± 0.003** |
-| bin_elementwise_mul_2048x2048 | 1.695 | **1.221 ± 0.031** |
-| bin_matmul_256 | 0.634 | **0.578 ± 0.012** |
-| bin_outer_product_4096 | 3.357 | **2.129 ± 0.029** |
-| gm_queen5_5_3.wcsp | **0.479** | 678.527 ± 3.202 |
-| lm_batch_likelihood_brackets_4_4d | 46.802 | **10.227 ± 0.214** |
-| lm_batch_likelihood_sentence_3_12d | 962.961 | **34.883 ± 0.191** |
-| lm_batch_likelihood_sentence_4_4d | 94.468 | **11.513 ± 0.138** |
-| str_matrix_chain_multiplication_100 | - | **8.840 ± 0.106** |
-| str_mps_varying_inner_product_200 | - | **8.680 ± 0.129** |
-| str_nw_mera_closed_120 | - | **857.491 ± 2.012** |
-| str_nw_mera_open_26 | - | **556.531 ± 1.800** |
-| tensornetwork_permutation_focus_step409_316 | **7.991** | 166.498 ± 0.524 |
-| tensornetwork_permutation_light_415 | **0.743** | 167.472 ± 0.506 |
+| bin_batched_matmul_b32_m64_n64_k64 | 0.685 ± 0.007 | **0.498 ± 0.002** |
+| bin_elementwise_mul_2048x2048 | 1.606 ± 0.069 | **1.238 ± 0.122** |
+| bin_matmul_256 | 0.624 ± 0.009 | **0.577 ± 0.003** |
+| bin_outer_product_4096 | 3.213 ± 0.067 | **2.116 ± 0.031** |
+| gm_queen5_5_3.wcsp | **0.446 ± 0.006** | 675.833 ± 6.907 |
+| lm_batch_likelihood_brackets_4_4d | 46.479 ± 0.555 | **10.266 ± 0.148** |
+| lm_batch_likelihood_sentence_3_12d | 915.454 ± 25.753 | **34.695 ± 0.658** |
+| lm_batch_likelihood_sentence_4_4d | 94.324 ± 0.857 | **11.346 ± 0.251** |
+| str_matrix_chain_multiplication_100 | - | **8.993 ± 0.307** |
+| str_mps_varying_inner_product_200 | - | **8.742 ± 0.283** |
+| str_nw_mera_closed_120 | - | **884.260 ± 17.634** |
+| str_nw_mera_open_26 | - | **555.995 ± 1.449** |
+| tensornetwork_permutation_focus_step409_316 | **8.229 ± 1.203** | 166.382 ± 0.557 |
+| tensornetwork_permutation_light_415 | **0.787 ± 0.075** | 167.383 ± 0.300 |
 
 **Notes:**
 - `-` indicates the instance was skipped (OOM or unsupported). Skipped instances are reported as **SKIP** with the reason on stderr.
