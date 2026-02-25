@@ -1,0 +1,14 @@
+[package]
+name = "tenferro-einsum-benchmark"
+version = "0.1.0"
+edition = "2021"
+description = "Benchmark suite for tenferro-einsum based on einsum benchmark"
+
+[dependencies]
+tenferro-einsum = { path = "../tenferro-rs/tenferro-einsum" }
+tenferro-tensor = { path = "../tenferro-rs/tenferro-tensor" }
+tenferro-prims = { path = "../tenferro-rs/tenferro-prims" }
+tenferro-device = { path = "../tenferro-rs/tenferro-device" }
+num-complex = "0.4"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
