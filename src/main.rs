@@ -46,10 +46,38 @@ struct PathMeta {
 
 /// Convert opt_einsum/cotengra path format to tenferro ContractionTree pairs.
 ///
-/// Path convention: each step [i, j] contracts tensors at indices i and j
-/// in the current list. Same as tenferro's from_pairs (left, right).
-fn path_to_pairs(path: &[[usize; 2]]) -> Vec<(usize, usize)> {
-    path.iter().map(|p| (p[0], p[1])).collect()
+/// opt_einsum path convention: each step `[i, j]` contracts tensors at
+/// positions `i` and `j` in the **current** list. The higher index is
+/// removed first, then the lower; the result is appended to the end.
+///
+/// tenferro `from_pairs` convention: pairs use **absolute** indices where
+/// inputs are `0..n_inputs` and intermediates are `n_inputs, n_inputs+1, …`.
+///
+/// This function simulates the current-list removal to convert between the
+/// two conventions.
+fn path_to_pairs(n_inputs: usize, path: &[[usize; 2]]) -> Vec<(usize, usize)> {
+    // `available` tracks the absolute index of each position in the current list.
+    let mut available: Vec<usize> = (0..n_inputs).collect();
+    let mut pairs = Vec::with_capacity(path.len());
+
+    for (step_idx, &pair) in path.iter().enumerate() {
+        let (i, j) = if pair[0] < pair[1] {
+            (pair[0], pair[1])
+        } else {
+            (pair[1], pair[0])
+        };
+        let abs_j = available[j];
+        let abs_i = available[i];
+        pairs.push((abs_i, abs_j));
+
+        // Remove higher index first, then lower; append intermediate.
+        available.remove(j);
+        available.remove(i);
+        let intermediate_idx = n_inputs + step_idx;
+        available.push(intermediate_idx);
+    }
+
+    pairs
 }
 
 // ---------------------------------------------------------------------------
@@ -87,7 +115,7 @@ fn run_instance(
         .iter()
         .map(|s| s.as_slice())
         .collect();
-    let pairs = path_to_pairs(&path_meta.path);
+    let pairs = path_to_pairs(instance.num_tensors, &path_meta.path);
     let tree = ContractionTree::from_pairs(&subs, &shapes, &pairs)?;
 
     let operands: Vec<Tensor<f64>> = create_operands(&instance.shapes_colmajor, &instance.dtype);

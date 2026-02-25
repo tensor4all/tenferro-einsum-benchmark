@@ -177,52 +177,50 @@ Instances are from the [einsum benchmark](https://benchmark.einsum.org/) suite. 
 
 ### Apple Silicon M4
 
-Environment: Apple Silicon M4. Median ± IQR (ms) of 15 runs (3 warmup). OMP_NUM_THREADS=1, RAYON_NUM_THREADS=1. tenferro-einsum branch: `perf/thread-local-buffer-pool`. Run date: 2026-02-26.
+Environment: Apple Silicon M4. Median ± IQR (ms) of 15 runs (3 warmup). OMP_NUM_THREADS=1, RAYON_NUM_THREADS=1. Run date: 2026-02-26.
 
 #### Strategy: opt_flops
 
 | Instance | tenferro-einsum (ms) | strided-rs faer (ms) |
 |---|---:|---:|
-| bin_batched_matmul_b32_m64_n64_k64 | **0.671 ± 0.008** | 1.045 ± 1.164 |
-| bin_elementwise_mul_2048x2048 | 1.699 ± 0.157 | **1.348 ± 0.059** |
-| bin_matmul_256 | **0.613 ± 0.006** | 0.642 ± 0.031 |
-| bin_outer_product_4096 | 3.302 ± 0.132 | **2.187 ± 0.042** |
-| gm_queen5_5_3.wcsp | **0.379 ± 0.042** | 1902.638 ± 110.824 |
-| lm_batch_likelihood_brackets_4_4d | 58.872 ± 1.285 | **10.887 ± 0.861** |
-| lm_batch_likelihood_sentence_3_12d | 947.511 ± 37.601 | **35.014 ± 0.717** |
-| lm_batch_likelihood_sentence_4_4d | 179.553 ± 3.851 | **12.846 ± 0.477** |
-| str_matrix_chain_multiplication_100 | - | **9.313 ± 0.161** |
-| str_mps_varying_inner_product_200 | - | **9.193 ± 0.188** |
-| str_nw_mera_closed_120 | 21120.345 ± 579.905 | **849.502 ± 27.540** |
-| str_nw_mera_open_26 | - | **552.565 ± 2.052** |
-| tensornetwork_permutation_focus_step409_316 | **13.338 ± 4.282** | 166.479 ± 0.288 |
-| tensornetwork_permutation_light_415 | **0.876 ± 0.131** | 167.541 ± 0.378 |
+| bin_batched_matmul_b32_m64_n64_k64 | **0.697 ± 0.059** | 1.045 ± 1.164 |
+| bin_elementwise_mul_2048x2048 | 1.564 ± 0.129 | **1.348 ± 0.059** |
+| bin_matmul_256 | 0.624 ± 0.022 | **0.642 ± 0.031** |
+| bin_outer_product_4096 | 3.374 ± 0.185 | **2.187 ± 0.042** |
+| gm_queen5_5_3.wcsp | 3418.918 ± 119.262 | **1902.638 ± 110.824** |
+| lm_batch_likelihood_brackets_4_4d | 22.135 ± 0.525 | **10.887 ± 0.861** |
+| lm_batch_likelihood_sentence_3_12d | 63.152 ± 0.560 | **35.014 ± 0.717** |
+| lm_batch_likelihood_sentence_4_4d | 24.455 ± 0.288 | **12.846 ± 0.477** |
+| str_matrix_chain_multiplication_100 | 10.372 ± 0.238 | **9.313 ± 0.161** |
+| str_mps_varying_inner_product_200 | 10.687 ± 0.135 | **9.193 ± 0.188** |
+| str_nw_mera_closed_120 | 901.744 ± 7.180 | **849.502 ± 27.540** |
+| str_nw_mera_open_26 | 710.785 ± 5.381 | **552.565 ± 2.052** |
+| tensornetwork_permutation_focus_step409_316 | 264.193 ± 1.271 | **166.479 ± 0.288** |
+| tensornetwork_permutation_light_415 | 267.442 ± 4.188 | **167.541 ± 0.378** |
 
 #### Strategy: opt_size
 
 | Instance | tenferro-einsum (ms) | strided-rs faer (ms) |
 |---|---:|---:|
-| bin_batched_matmul_b32_m64_n64_k64 | 0.678 ± 0.015 | **0.495 ± 0.004** |
-| bin_elementwise_mul_2048x2048 | 1.733 ± 0.168 | **1.199 ± 0.036** |
-| bin_matmul_256 | 0.617 ± 0.005 | **0.573 ± 0.004** |
-| bin_outer_product_4096 | 3.396 ± 0.193 | **2.111 ± 0.022** |
-| gm_queen5_5_3.wcsp | **0.376 ± 0.029** | 679.637 ± 6.264 |
-| lm_batch_likelihood_brackets_4_4d | 44.731 ± 0.911 | **10.230 ± 0.254** |
-| lm_batch_likelihood_sentence_3_12d | 920.563 ± 16.082 | **34.741 ± 0.190** |
-| lm_batch_likelihood_sentence_4_4d | 88.428 ± 1.355 | **11.354 ± 0.087** |
-| str_matrix_chain_multiplication_100 | - | **8.866 ± 0.082** |
-| str_mps_varying_inner_product_200 | - | **8.685 ± 0.036** |
-| str_nw_mera_closed_120 | - | **856.891 ± 1.023** |
-| str_nw_mera_open_26 | - | **557.021 ± 0.907** |
-| tensornetwork_permutation_focus_step409_316 | **9.205 ± 1.073** | 166.626 ± 0.457 |
-| tensornetwork_permutation_light_415 | **1.034 ± 0.349** | 167.391 ± 0.418 |
+| bin_batched_matmul_b32_m64_n64_k64 | 0.661 ± 0.011 | **0.495 ± 0.004** |
+| bin_elementwise_mul_2048x2048 | 1.865 ± 0.109 | **1.199 ± 0.036** |
+| bin_matmul_256 | 0.596 ± 0.010 | **0.573 ± 0.004** |
+| bin_outer_product_4096 | 2.974 ± 0.102 | **2.111 ± 0.022** |
+| gm_queen5_5_3.wcsp | 1176.576 ± 14.389 | **679.637 ± 6.264** |
+| lm_batch_likelihood_brackets_4_4d | 22.357 ± 0.221 | **10.230 ± 0.254** |
+| lm_batch_likelihood_sentence_3_12d | 66.397 ± 0.474 | **34.741 ± 0.190** |
+| lm_batch_likelihood_sentence_4_4d | 26.016 ± 0.307 | **11.354 ± 0.087** |
+| str_matrix_chain_multiplication_100 | 10.376 ± 0.165 | **8.866 ± 0.082** |
+| str_mps_varying_inner_product_200 | 9.872 ± 0.045 | **8.685 ± 0.036** |
+| str_nw_mera_closed_120 | 891.305 ± 2.139 | **856.891 ± 1.023** |
+| str_nw_mera_open_26 | 698.133 ± 8.734 | **557.021 ± 0.907** |
+| tensornetwork_permutation_focus_step409_316 | 265.796 ± 2.114 | **166.626 ± 0.457** |
+| tensornetwork_permutation_light_415 | 266.172 ± 2.602 | **167.391 ± 0.418** |
 
 **Notes:**
-- `-` indicates the instance was skipped (OOM or unsupported). Skipped instances are reported as **SKIP** with the reason on stderr.
-- `str_matrix_chain_multiplication_100`, `str_mps_varying_inner_product_200`, `str_nw_mera_open_26` are OOM-killed on M4.
-- `str_nw_mera_closed_120` runs for `opt_flops` (~21s) but OOM-kills for `opt_size`.
 - **strided-rs faer** uses [faer](https://github.com/sarah-quinones/faer-rs) (pure Rust GEMM).
 - tenferro-einsum and strided-rs use the same pre-computed contraction path for fair comparison.
+- Previous results (before 2026-02-26) had a bug in `path_to_pairs` that incorrectly mapped opt_einsum current-list indices to tenferro's absolute indices, causing most multi-tensor contractions to skip work and report artificially fast times.
 
 ## References
 
