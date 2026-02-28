@@ -1135,6 +1135,7 @@ name = "strided-perm"
 version = "0.1.0"
 source = "git+https://github.com/tensor4all/strided-rs?rev=ea37986f4d9cb99cfc1f62a1d4aea561cb3a9722#ea37986f4d9cb99cfc1f62a1d4aea561cb3a9722"
 dependencies = [
+ "rayon",
  "strided-view",
 ]
 
