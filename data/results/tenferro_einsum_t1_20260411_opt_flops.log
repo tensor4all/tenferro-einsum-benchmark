@@ -1,0 +1,14 @@
+bin_batched_matmul_b32_m64_n64_k64                        2       6.92        17.00        2.040      0.022        0.059
+bin_elementwise_mul_2048x2048                             2       6.62        22.00       33.330      0.408        0.039
+bin_matmul_256                                            2       7.22        16.00        1.276      0.057        0.061
+bin_outer_product_4096                                    2       7.22        24.00      244.547      3.105        0.114
+gm_queen5_5_3.wcsp                                      160       9.75        26.94     9466.899    194.950       50.624
+lm_batch_likelihood_brackets_4_4d                        84       8.37        18.96       27.631      0.885        2.934
+lm_batch_likelihood_sentence_3_12d                       38       9.20        20.86       60.277      3.223        1.617
+lm_batch_likelihood_sentence_4_4d                        84       8.46        18.89       25.241      1.724        6.502
+str_matrix_chain_multiplication_100                     100       8.48        17.26       22.575      0.937       14.148
+str_mps_varying_inner_product_200                       200       8.31        15.48       20.159      0.693       69.099
+str_nw_mera_closed_120                                  120      10.66        25.02     1656.476     17.422        7.445
+str_nw_mera_open_26                                      26      10.49        25.36     1484.280     53.154        0.699
+tensornetwork_permutation_focus_step409_316             316       9.65        24.00      504.993     12.416       41.586
+tensornetwork_permutation_light_415                     415       9.65        24.00      679.638     59.792       56.277
