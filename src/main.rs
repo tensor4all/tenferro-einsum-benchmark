@@ -1,17 +1,19 @@
 //! Benchmark runner for tenferro-einsum using einsum benchmark instances.
 //!
 //! Loads JSON metadata from data/instances/, builds ContractionTree from
-//! pre-computed paths (opt_flops / opt_size), and times tenferro-einsum execution.
+//! pre-computed paths, compiles the compute graph once, and times execution.
 
 use std::hint::black_box;
+use std::panic;
 use std::path::Path;
 use std::time::{Duration, Instant};
 
 use serde::Deserialize;
-use tenferro_device::LogicalMemorySpace;
-use tenferro_einsum::{einsum_with_plan, ContractionTree, Subscripts};
-use tenferro_prims::{CpuBackend, CpuContext};
-use tenferro_tensor::{MemoryOrder, Tensor};
+use tenferro::exec::eval_exec_ir;
+use tenferro_einsum::{ContractionTree, Subscripts};
+use tenferro_einsum_benchmark::{compile_einsum, reorder_user_operands, unwrap_eval_result};
+use tenferro_tensor::cpu::CpuBackend;
+use tenferro_tensor::{Tensor, TypedTensor};
 
 // ---------------------------------------------------------------------------
 // JSON schema
@@ -45,18 +47,7 @@ struct PathMeta {
 // ---------------------------------------------------------------------------
 
 /// Convert opt_einsum/cotengra path format to tenferro ContractionTree pairs.
-///
-/// opt_einsum path convention: each step `[i, j]` contracts tensors at
-/// positions `i` and `j` in the **current** list. The higher index is
-/// removed first, then the lower; the result is appended to the end.
-///
-/// tenferro `from_pairs` convention: pairs use **absolute** indices where
-/// inputs are `0..n_inputs` and intermediates are `n_inputs, n_inputs+1, …`.
-///
-/// This function simulates the current-list removal to convert between the
-/// two conventions.
 fn path_to_pairs(n_inputs: usize, path: &[[usize; 2]]) -> Vec<(usize, usize)> {
-    // `available` tracks the absolute index of each position in the current list.
     let mut available: Vec<usize> = (0..n_inputs).collect();
     let mut pairs = Vec::with_capacity(path.len());
 
@@ -70,7 +61,6 @@ fn path_to_pairs(n_inputs: usize, path: &[[usize; 2]]) -> Vec<(usize, usize)> {
         let abs_i = available[i];
         pairs.push((abs_i, abs_j));
 
-        // Remove higher index first, then lower; append intermediate.
         available.remove(j);
         available.remove(i);
         let intermediate_idx = n_inputs + step_idx;
@@ -81,62 +71,74 @@ fn path_to_pairs(n_inputs: usize, path: &[[usize; 2]]) -> Vec<(usize, usize)> {
 }
 
 // ---------------------------------------------------------------------------
-// Benchmark runner
+// Tensor creation
 // ---------------------------------------------------------------------------
 
-fn create_operands(shapes: &[Vec<usize>], dtype: &str) -> Vec<Tensor<f64>> {
-    let col = MemoryOrder::ColumnMajor;
-    let mem = LogicalMemorySpace::MainMemory;
-
-    match dtype {
-        "float64" => shapes
-            .iter()
-            .map(|shape| Tensor::<f64>::zeros(shape, mem, col))
-            .collect(),
-        "complex128" => panic!("complex128 not yet supported in tenferro-einsum-benchmark"),
-        other => panic!("unsupported dtype: {other}"),
-    }
+fn create_operand_tensors(shapes: &[Vec<usize>]) -> Vec<Tensor> {
+    shapes
+        .iter()
+        .map(|shape| Tensor::F64(TypedTensor::<f64>::zeros(shape.clone())))
+        .collect()
 }
+
+// ---------------------------------------------------------------------------
+// Benchmark runner
+// ---------------------------------------------------------------------------
 
 fn run_instance(
     instance: &BenchmarkInstance,
     path_meta: &PathMeta,
-    ctx: &mut CpuContext,
-) -> Result<(Duration, Duration), tenferro_device::Error> {
+) -> Result<(Duration, Duration, Duration), String> {
     if instance.dtype == "complex128" {
-        return Err(tenferro_device::Error::InvalidArgument(
-            "complex128 not supported".into(),
-        ));
+        return Err("complex128 not supported".into());
     }
 
-    let subs = Subscripts::parse(&instance.format_string_colmajor)?;
+    let subs = Subscripts::parse(&instance.format_string_colmajor).map_err(|e| format!("{e}"))?;
     let shapes: Vec<&[usize]> = instance
         .shapes_colmajor
         .iter()
         .map(|s| s.as_slice())
         .collect();
     let pairs = path_to_pairs(instance.num_tensors, &path_meta.path);
-    let tree = ContractionTree::from_pairs(&subs, &shapes, &pairs)?;
+    let tree = ContractionTree::from_pairs(&subs, &shapes, &pairs).map_err(|e| format!("{e}"))?;
 
-    let operands: Vec<Tensor<f64>> = create_operands(&instance.shapes_colmajor, &instance.dtype);
-    let operands_refs: Vec<&Tensor<f64>> = operands.iter().collect();
+    // Compile once
+    let t_compile_start = Instant::now();
+    let compiled = compile_einsum(&subs, &instance.shapes_colmajor, &tree)?;
+    let compile_time = t_compile_start.elapsed();
 
-    // Warmup
+    let mut backend = CpuBackend::new();
+
+    // Warmup (execution only, graph already compiled)
+    // Use catch_unwind to handle panics from unsupported layouts
     for _ in 0..3 {
-        let _ = einsum_with_plan::<_, CpuBackend>(ctx, &tree, &operands_refs, None)?;
+        let operands = reorder_user_operands(
+            &compiled.input_keys,
+            create_operand_tensors(&instance.shapes_colmajor),
+        )?;
+        let exec_ref = &compiled.exec;
+        let result = panic::catch_unwind(panic::AssertUnwindSafe(|| {
+            eval_exec_ir(&mut backend, exec_ref, operands)
+        }));
+        let _ = unwrap_eval_result(result, "panic during execution (unsupported layout?)")?;
     }
 
     // Timed runs
     let num_runs = 15;
     let mut durations = Vec::with_capacity(num_runs);
     for _ in 0..num_runs {
-        let operands: Vec<Tensor<f64>> =
-            create_operands(&instance.shapes_colmajor, &instance.dtype);
-        let operands_refs: Vec<&Tensor<f64>> = operands.iter().collect();
+        let operands = reorder_user_operands(
+            &compiled.input_keys,
+            create_operand_tensors(&instance.shapes_colmajor),
+        )?;
+        let exec_ref = &compiled.exec;
         let t0 = Instant::now();
-        let result = einsum_with_plan::<_, CpuBackend>(ctx, &tree, &operands_refs, None)?;
+        let result = panic::catch_unwind(panic::AssertUnwindSafe(|| {
+            eval_exec_ir(&mut backend, exec_ref, operands)
+        }));
         let elapsed = t0.elapsed();
-        black_box(&result);
+        let eval = unwrap_eval_result(result, "panic during execution (unsupported layout?)")?;
+        black_box(&eval);
         durations.push(elapsed);
     }
 
@@ -145,7 +147,7 @@ fn run_instance(
     let q1 = durations[num_runs / 4];
     let q3 = durations[3 * num_runs / 4];
     let iqr = q3.saturating_sub(q1);
-    Ok((median, iqr))
+    Ok((median, iqr, compile_time))
 }
 
 // ---------------------------------------------------------------------------
@@ -204,8 +206,6 @@ fn main() {
     let rayon_threads = std::env::var("RAYON_NUM_THREADS").unwrap_or_else(|_| "unset".into());
     let omp_threads = std::env::var("OMP_NUM_THREADS").unwrap_or_else(|_| "unset".into());
 
-    let mut ctx = CpuContext::new(4);
-
     println!("{BACKEND_NAME} benchmark suite");
     println!("==================================");
     println!(
@@ -215,7 +215,7 @@ fn main() {
     );
     println!("Backend: {BACKEND_NAME}");
     println!("RAYON_NUM_THREADS={rayon_threads}, OMP_NUM_THREADS={omp_threads}");
-    println!("Timing: median ± IQR of 15 runs (3 warmup)");
+    println!("Timing: median ± IQR of 15 runs (3 warmup), graph compiled once");
 
     let strategies: &[(&str, fn(&PathInfo) -> &PathMeta)] = &[
         ("opt_flops", |p| &p.opt_flops),
@@ -226,35 +226,43 @@ fn main() {
         println!();
         println!("Strategy: {strategy_name}");
         println!(
-            "{:<50} {:>8} {:>10} {:>12} {:>12} {:>10}",
-            "Instance", "Tensors", "log10FLOPS", "log2SIZE", "Median (ms)", "IQR (ms)"
+            "{:<50} {:>8} {:>10} {:>12} {:>12} {:>10} {:>12}",
+            "Instance",
+            "Tensors",
+            "log10FLOPS",
+            "log2SIZE",
+            "Median (ms)",
+            "IQR (ms)",
+            "Compile (ms)"
         );
-        println!("{}", "-".repeat(108));
+        println!("{}", "-".repeat(120));
 
         for (i, instance) in instances.iter().enumerate() {
             eprintln!("  [{}/{}] {}...", i + 1, instances.len(), instance.name);
             let path_meta = get_path(&instance.paths);
-            match run_instance(instance, path_meta, &mut ctx) {
-                Ok((median, iqr)) => {
+            match run_instance(instance, path_meta) {
+                Ok((median, iqr, compile_time)) => {
                     println!(
-                        "{:<50} {:>8} {:>10.2} {:>12.2} {:>12.3} {:>10.3}",
+                        "{:<50} {:>8} {:>10.2} {:>12.2} {:>12.3} {:>10.3} {:>12.3}",
                         instance.name,
                         instance.num_tensors,
                         path_meta.log10_flops,
                         path_meta.log2_size,
                         median.as_secs_f64() * 1e3,
                         iqr.as_secs_f64() * 1e3,
+                        compile_time.as_secs_f64() * 1e3,
                     );
                 }
                 Err(e) => {
                     eprintln!("  -> {} (error: {e})", instance.name);
                     println!(
-                        "{:<50} {:>8} {:>10.2} {:>12.2} {:>12} {:>10}",
+                        "{:<50} {:>8} {:>10.2} {:>12.2} {:>12} {:>10} {:>12}",
                         instance.name,
                         instance.num_tensors,
                         path_meta.log10_flops,
                         path_meta.log2_size,
                         "SKIP",
+                        "-",
                         "-",
                     );
                 }
