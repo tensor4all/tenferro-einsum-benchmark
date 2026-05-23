@@ -5,8 +5,10 @@ use computegraph::fragment::FragmentBuilder;
 use computegraph::materialize::materialize_merge;
 use computegraph::resolve::resolve;
 use computegraph::types::{GlobalValKey, ValRef};
-use tenferro::compiler::{compile_to_exec, lower_to_stablehlo};
+use tenferro::compiler::compile_std_to_exec;
 use tenferro::exec::ExecProgram;
+use tenferro_ops::dim_expr::DimExpr;
+use tenferro_tensor::DType;
 use tenferro_einsum::{build_einsum_fragment, ContractionTree, Subscripts};
 use tenferro_ops::input_key::TensorInputKey;
 use tenferro_ops::std_tensor_op::StdTensorOp;
@@ -32,7 +34,8 @@ pub fn compile_einsum(
         })
         .collect();
 
-    let result = build_einsum_fragment(&mut builder, tree, &input_vals, shapes);
+    let result = build_einsum_fragment(&mut builder, tree, &input_vals, shapes)
+        .map_err(|e| format!("{e}"))?;
     let local_id = match result {
         ValRef::Local(local_id) => local_id,
         ValRef::External(_) => {
@@ -47,8 +50,8 @@ pub fn compile_einsum(
     let view = resolve(vec![fragment]);
     let graph = materialize_merge(&view, &[output_key]);
     let compiled = compile(&graph);
-    let stablehlo = lower_to_stablehlo(&compiled);
-    let exec = compile_to_exec(&stablehlo);
+
+    // input_keys を先に抽出（compile_std_to_exec の shape マッピングに必要）
     let input_keys = graph
         .inputs
         .iter()
@@ -57,6 +60,23 @@ pub fn compile_einsum(
             _ => Err(format!("expected Input key in graph inputs, got {key:?}")),
         })
         .collect::<Result<Vec<_>, _>>()?;
+
+    // compile_std_to_exec に渡す dtype と shape を構築
+    let input_dtypes: Vec<DType> = input_keys.iter().map(|_| DType::F64).collect();
+    let input_shapes_dim: Vec<Vec<DimExpr>> = input_keys
+        .iter()
+        .map(|key| match key {
+            TensorInputKey::User { id } => {
+                let idx = *id as usize;
+                Ok(shapes[idx].iter().map(|&d| DimExpr::Const(d)).collect())
+            }
+            other => Err(format!(
+                "benchmark runner expected user input keys, got {other:?}"
+            )),
+        })
+        .collect::<Result<Vec<_>, _>>()?;
+
+    let exec = compile_std_to_exec(&compiled, &input_dtypes, &input_shapes_dim);
 
     Ok(CompiledEinsum { exec, input_keys })
 }

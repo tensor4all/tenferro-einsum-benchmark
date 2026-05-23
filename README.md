@@ -20,7 +20,8 @@ See [tensor4all/tenferro-rs](https://github.com/tensor4all/tenferro-rs) for the 
 ```
 tenferro-einsum-benchmark/
   src/
-    main.rs                 # Rust benchmark runner (tenferro-einsum)
+    main.rs                 # Rust benchmark runner entry point
+    lib.rs                  # Shared compilation & evaluation helpers (compile_einsum, reorder_user_operands)
   scripts/
     run_all.sh              # Top-level orchestrator (delegates to run_all_rust.sh)
     run_all_rust.sh         # Build & run tenferro-einsum + strided-rs (faer)
