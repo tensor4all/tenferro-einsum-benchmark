@@ -8,6 +8,7 @@ This repository provides:
 
 - A Python pipeline to extract einsum benchmark metadata (shapes, dtypes, contraction paths) into portable JSON
 - A **Rust** benchmark runner using [tenferro-einsum](https://github.com/tensor4all/tenferro-rs)
+- **Python** benchmark runners using **PyTorch** and **JAX** for comparison
 
 Only metadata is stored — tensors are generated at benchmark time (zero-filled), keeping the repo lightweight.
 
@@ -23,15 +24,17 @@ tenferro-einsum-benchmark/
     main.rs                 # Rust benchmark runner entry point
     lib.rs                  # Shared compilation & evaluation helpers (compile_einsum, reorder_user_operands)
   scripts/
-    run_all.sh              # Top-level orchestrator (delegates to run_all_rust.sh)
+    run_all.sh              # Top-level orchestrator (Rust + Python)
     run_all_rust.sh         # Build & run tenferro-einsum + strided-rs (faer)
+    run_all_python.sh       # Run PyTorch CPU + JAX CPU benchmarks
+    benchmark_python.py     # Python benchmark runner (PyTorch / JAX)
     generate_dataset.py     # Filter & export benchmark instances as JSON
-    format_results.py       # Parse logs and output markdown tables
+    format_results.py       # Parse logs and output unified markdown tables
   data/
     instances/              # Exported JSON metadata (one file per instance)
     results/                # Benchmark logs and markdown results
   Cargo.toml                # Rust project
-  pyproject.toml            # Python project
+  pyproject.toml            # Python project (includes torch, jax, opt_einsum)
 ```
 
 ## Setup
@@ -77,10 +80,14 @@ This selects instances by category with laptop-scale criteria and saves JSON met
 ./scripts/run_all.sh 4        # 4 threads
 ```
 
-- Delegates to `scripts/run_all_rust.sh` (tenferro-einsum + strided-rs faer)
-- Sets `OMP_NUM_THREADS` and `RAYON_NUM_THREADS` to the given thread count (default: 1)
-- Formats results as a markdown table via `scripts/format_results.py`
-- Saves all outputs to `data/results/` with timestamps
+Runs all backends in sequence and writes a unified markdown comparison table:
+
+- **tenferro-einsum** (Rust) — via `scripts/run_all_rust.sh`
+- **strided-rs faer** (Rust, optional) — requires `../strided-rs-benchmark-suite`
+- **PyTorch CPU** (Python) — via `scripts/run_all_python.sh`
+- **JAX CPU** (Python) — via `scripts/run_all_python.sh`
+
+Sets `OMP_NUM_THREADS` and `RAYON_NUM_THREADS` to the given thread count (default: 1). Saves all logs and the markdown table to `data/results/` with timestamps.
 
 Instance JSON files that fail to read or parse are skipped with a warning; the suite continues with the rest. Instances that trigger a backend error are reported as **SKIP** with the reason on stderr.
 
@@ -143,10 +150,11 @@ uv run python scripts/format_results.py data/results/tenferro_einsum_*.log
 
 This script:
 
-1. Delegates to `scripts/run_all_rust.sh` which builds and runs tenferro-einsum and strided-rs (faer)
-2. Sets `OMP_NUM_THREADS` and `RAYON_NUM_THREADS` to the given thread count (default: 1)
-3. Formats results as a markdown table via `scripts/format_results.py`
-4. Saves all outputs to `data/results/` with timestamps
+1. Delegates to `scripts/run_all_rust.sh` (tenferro-einsum + optionally strided-rs faer)
+2. Delegates to `scripts/run_all_python.sh` (PyTorch CPU + JAX CPU)
+3. Sets `OMP_NUM_THREADS` and `RAYON_NUM_THREADS` to the given thread count (default: 1)
+4. Formats all collected logs as a unified markdown table via `scripts/format_results.py`
+5. Saves all outputs to `data/results/` with timestamps
 
 ## Benchmark Instances
 
@@ -268,6 +276,55 @@ Median ± IQR (ms). OMP_NUM_THREADS=4, RAYON_NUM_THREADS=4.
 **Notes:**
 - **strided-rs faer** uses [faer](https://github.com/sarah-quinones/faer-rs) (pure Rust GEMM).
 - Both backends use the same pre-computed contraction path for fair comparison.
+
+### Python Backend Comparison (4 threads, tenferro-einsum vs PyTorch vs JAX)
+
+#### Strategy: opt_flops
+
+Median ± IQR (ms). OMP_NUM_THREADS=4, RAYON_NUM_THREADS=4.
+
+| Instance | tenferro-einsum (ms) | PyTorch CPU (ms) | JAX CPU (ms) |
+|---|---:|---:|---:|
+| bin_batched_matmul_b32_m64_n64_k64 | 1.222 ± 0.171 | **0.137 ± 0.007** | 0.255 ± 0.078 |
+| bin_elementwise_mul_2048x2048 | 1.437 ± 0.040 | **1.144 ± 0.024** | 1.808 ± 0.288 |
+| bin_matmul_256 | 0.244 ± 0.020 | **0.114 ± 0.005** | 0.319 ± 0.046 |
+| bin_outer_product_4096 | 11.497 ± 0.233 | **1.127 ± 0.040** | 1.231 ± 0.035 |
+| gm_queen5_5_3.wcsp | 1671.237 ± 27.613 | **511.059 ± 12.615** | 855.035 ± 7.509 |
+| lm_batch_likelihood_brackets_4_4d | 13.300 ± 0.294 | 12.125 ± 0.176 | **8.966 ± 0.240** |
+| lm_batch_likelihood_sentence_3_12d | 18.786 ± 0.330 | 20.495 ± 0.221 | **11.320 ± 0.155** |
+| lm_batch_likelihood_sentence_4_4d | 11.990 ± 0.332 | 12.329 ± 0.397 | **8.962 ± 0.204** |
+| str_matrix_chain_multiplication_100 | 7.039 ± 0.194 | **4.518 ± 0.170** | 9.316 ± 0.244 |
+| str_mps_varying_inner_product_200 | 10.761 ± 0.144 | **8.359 ± 0.192** | 19.889 ± 0.221 |
+| str_nw_mera_closed_120 | 329.697 ± 2.670 | **125.312 ± 6.207** | 163.553 ± 2.854 |
+| str_nw_mera_open_26 | 283.915 ± 2.472 | **89.812 ± 0.860** | 129.246 ± 3.767 |
+| tensornetwork_permutation_focus_step409_316 | 192.004 ± 2.471 | **103.624 ± 7.313** | 107.206 ± 5.215 |
+| tensornetwork_permutation_light_415 | 193.898 ± 1.053 | **94.805 ± 1.543** | 116.222 ± 5.823 |
+
+#### Strategy: opt_size
+
+Median ± IQR (ms). OMP_NUM_THREADS=4, RAYON_NUM_THREADS=4.
+
+| Instance | tenferro-einsum (ms) | PyTorch CPU (ms) | JAX CPU (ms) |
+|---|---:|---:|---:|
+| bin_batched_matmul_b32_m64_n64_k64 | 0.650 ± 0.015 | **0.128 ± 0.004** | 0.230 ± 0.061 |
+| bin_elementwise_mul_2048x2048 | 1.135 ± 0.081 | **0.878 ± 0.198** | 1.818 ± 0.258 |
+| bin_matmul_256 | 0.266 ± 0.035 | **0.111 ± 0.003** | 0.321 ± 0.018 |
+| bin_outer_product_4096 | 11.854 ± 0.079 | **1.126 ± 0.035** | 2.206 ± 0.801 |
+| gm_queen5_5_3.wcsp | 670.476 ± 3.256 | **246.509 ± 11.433** | 302.771 ± 10.642 |
+| lm_batch_likelihood_brackets_4_4d | 12.863 ± 0.256 | 13.181 ± 0.680 | **8.970 ± 0.142** |
+| lm_batch_likelihood_sentence_3_12d | 22.945 ± 0.380 | 21.198 ± 0.603 | **12.293 ± 0.334** |
+| lm_batch_likelihood_sentence_4_4d | 13.129 ± 0.398 | 12.082 ± 0.155 | **7.992 ± 0.118** |
+| str_matrix_chain_multiplication_100 | 7.362 ± 0.723 | **4.656 ± 0.192** | 9.349 ± 0.298 |
+| str_mps_varying_inner_product_200 | 12.729 ± 0.288 | **10.283 ± 0.147** | 22.175 ± 0.526 |
+| str_nw_mera_closed_120 | 316.895 ± 1.899 | **105.094 ± 0.560** | 152.457 ± 2.655 |
+| str_nw_mera_open_26 | 283.695 ± 1.514 | **92.795 ± 0.845** | 133.967 ± 3.920 |
+| tensornetwork_permutation_focus_step409_316 | 193.855 ± 1.294 | **90.619 ± 11.373** | 109.681 ± 6.701 |
+| tensornetwork_permutation_light_415 | 196.092 ± 2.175 | **94.967 ± 0.863** | 113.566 ± 3.765 |
+
+**Notes:**
+- **PyTorch CPU** uses [torch.einsum](https://pytorch.org/docs/stable/generated/torch.einsum.html) via [opt_einsum](https://optimized-einsum.readthedocs.io/) with pre-computed paths.
+- **JAX CPU** uses [jax.numpy.einsum](https://jax.readthedocs.io/en/latest/_autosummary/jax.numpy.einsum.html) via opt_einsum; `jax_enable_x64=True`; `block_until_ready()` ensures timing accuracy.
+- All backends use the same pre-computed contraction path for fair comparison.
 
 ## References
 
