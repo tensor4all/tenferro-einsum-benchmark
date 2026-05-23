@@ -8,6 +8,7 @@ This repository provides:
 
 - A Python pipeline to extract einsum benchmark metadata (shapes, dtypes, contraction paths) into portable JSON
 - A **Rust** benchmark runner using [tenferro-einsum](https://github.com/tensor4all/tenferro-rs)
+- **Python** benchmark runners using **PyTorch** and **JAX** for comparison
 
 Only metadata is stored — tensors are generated at benchmark time (zero-filled), keeping the repo lightweight.
 
@@ -23,15 +24,17 @@ tenferro-einsum-benchmark/
     main.rs                 # Rust benchmark runner entry point
     lib.rs                  # Shared compilation & evaluation helpers (compile_einsum, reorder_user_operands)
   scripts/
-    run_all.sh              # Top-level orchestrator (delegates to run_all_rust.sh)
+    run_all.sh              # Top-level orchestrator (Rust + Python)
     run_all_rust.sh         # Build & run tenferro-einsum + strided-rs (faer)
+    run_all_python.sh       # Run PyTorch CPU + JAX CPU benchmarks
+    benchmark_python.py     # Python benchmark runner (PyTorch / JAX)
     generate_dataset.py     # Filter & export benchmark instances as JSON
-    format_results.py       # Parse logs and output markdown tables
+    format_results.py       # Parse logs and output unified markdown tables
   data/
     instances/              # Exported JSON metadata (one file per instance)
     results/                # Benchmark logs and markdown results
   Cargo.toml                # Rust project
-  pyproject.toml            # Python project
+  pyproject.toml            # Python project (includes torch, jax, opt_einsum)
 ```
 
 ## Setup
@@ -77,10 +80,14 @@ This selects instances by category with laptop-scale criteria and saves JSON met
 ./scripts/run_all.sh 4        # 4 threads
 ```
 
-- Delegates to `scripts/run_all_rust.sh` (tenferro-einsum + strided-rs faer)
-- Sets `OMP_NUM_THREADS` and `RAYON_NUM_THREADS` to the given thread count (default: 1)
-- Formats results as a markdown table via `scripts/format_results.py`
-- Saves all outputs to `data/results/` with timestamps
+Runs all backends in sequence and writes a unified markdown comparison table:
+
+- **tenferro-einsum** (Rust) — via `scripts/run_all_rust.sh`
+- **strided-rs faer** (Rust, optional) — requires `../strided-rs-benchmark-suite`
+- **PyTorch CPU** (Python) — via `scripts/run_all_python.sh`
+- **JAX CPU** (Python) — via `scripts/run_all_python.sh`
+
+Sets `OMP_NUM_THREADS` and `RAYON_NUM_THREADS` to the given thread count (default: 1). Saves all logs and the markdown table to `data/results/` with timestamps.
 
 Instance JSON files that fail to read or parse are skipped with a warning; the suite continues with the rest. Instances that trigger a backend error are reported as **SKIP** with the reason on stderr.
 
@@ -143,10 +150,11 @@ uv run python scripts/format_results.py data/results/tenferro_einsum_*.log
 
 This script:
 
-1. Delegates to `scripts/run_all_rust.sh` which builds and runs tenferro-einsum and strided-rs (faer)
-2. Sets `OMP_NUM_THREADS` and `RAYON_NUM_THREADS` to the given thread count (default: 1)
-3. Formats results as a markdown table via `scripts/format_results.py`
-4. Saves all outputs to `data/results/` with timestamps
+1. Delegates to `scripts/run_all_rust.sh` (tenferro-einsum + optionally strided-rs faer)
+2. Delegates to `scripts/run_all_python.sh` (PyTorch CPU + JAX CPU)
+3. Sets `OMP_NUM_THREADS` and `RAYON_NUM_THREADS` to the given thread count (default: 1)
+4. Formats all collected logs as a unified markdown table via `scripts/format_results.py`
+5. Saves all outputs to `data/results/` with timestamps
 
 ## Benchmark Instances
 
